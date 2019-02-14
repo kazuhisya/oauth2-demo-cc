@@ -1,14 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 
 	"encoding/json"
+	"github.com/dgrijalva/jwt-go"
 	"gopkg.in/oauth2.v3"
 	"gopkg.in/oauth2.v3/errors"
+	"gopkg.in/oauth2.v3/generates"
 	"gopkg.in/oauth2.v3/manage"
 	"gopkg.in/oauth2.v3/models"
 	"gopkg.in/oauth2.v3/server"
@@ -55,6 +58,9 @@ func main() {
 	}
 	manager.MapClientStorage(clientStore)
 
+	// JWT
+	manager.MapAccessGenerate(generates.NewJWTAccessGenerate([]byte("00000000"), jwt.SigningMethodHS512))
+
 	// http srv
 	srv := server.NewDefaultServer(manager)
 	srv.SetAllowGetAccessRequest(true)
@@ -79,8 +85,17 @@ func main() {
 
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
 		token, err := srv.ValidationBearerToken(r)
+		w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			//http.Error(w, err.Error(), http.StatusBadRequest)
+			w.WriteHeader(400)
+			data := map[string]interface{}{
+				"error":             "invalid_access_token",
+				"error_description": "Invalid access token",
+			}
+			e := json.NewEncoder(w)
+			e.SetIndent("", "  ")
+			e.Encode(data)
 			return
 		}
 
@@ -92,6 +107,29 @@ func main() {
 		e := json.NewEncoder(w)
 		e.SetIndent("", "  ")
 		e.Encode(data)
+	})
+
+	// wip
+	http.HandleFunc("/jwt", func(w http.ResponseWriter, r *http.Request) {
+		access := r.FormValue("access_token")
+		fmt.Fprintf(w, "access: %s\n", access)
+
+		token, err := jwt.ParseWithClaims(access, &generates.JWTAccessClaims{}, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				log.Println("1")
+				return nil, fmt.Errorf("parse error")
+			}
+			log.Println("2")
+			return []byte("00000000"), nil
+		})
+		if err != nil {
+			log.Println("3")
+			fmt.Errorf("parse error2")
+			return
+		}
+		log.Println("4")
+		claims := token.Claims.(*generates.JWTAccessClaims)
+		fmt.Println(claims.ClientID)
 	})
 
 	log.Println("Server is running at 9096 port.")

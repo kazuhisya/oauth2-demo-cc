@@ -1,9 +1,9 @@
 # vi: set ft=dockerfile :
 
-FROM alpine:3.9 AS build-env
+FROM golang:alpine AS build-env
 WORKDIR /root
 RUN apk update && \
-        apk add go musl-dev git && \
+        apk add git && \
         rm -rf /var/cache/apk/*
 RUN go get -u gopkg.in/oauth2.v3 github.com/dgrijalva/jwt-go github.com/tidwall/buntdb
 ADD server.go /root/server.go
