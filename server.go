@@ -1,13 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
 
-	"encoding/json"
+	"github.com/comail/colog"
 	"github.com/dgrijalva/jwt-go"
 	"gopkg.in/oauth2.v3"
 	"gopkg.in/oauth2.v3/errors"
@@ -25,6 +26,9 @@ type Client struct {
 }
 
 func main() {
+	//CoLog init
+	colog.Register()
+
 	// Read file
 	bytes, err := ioutil.ReadFile("client.json")
 	if err != nil {
@@ -59,7 +63,7 @@ func main() {
 	manager.MapClientStorage(clientStore)
 
 	// JWT
-	manager.MapAccessGenerate(generates.NewJWTAccessGenerate([]byte("00000000"), jwt.SigningMethodHS512))
+	manager.MapAccessGenerate(generates.NewJWTAccessGenerate([]byte("12345678"), jwt.SigningMethodHS256))
 
 	// http srv
 	srv := server.NewDefaultServer(manager)
@@ -80,13 +84,22 @@ func main() {
 	})
 
 	http.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		clientID := r.FormValue("client_id")
+		clientSecret := r.FormValue("client_secret")
+
+		log.Printf("info: /token, ID: %s , Sec: %s", clientID, clientSecret)
 		srv.HandleTokenRequest(w, r)
 	})
 
 	http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+		accessToken := r.FormValue("access_token")
+		log.Printf("info: /test, Token: %s", accessToken)
+
 		token, err := srv.ValidationBearerToken(r)
 		w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 		if err != nil {
+
+			log.Printf("warn: /test, Token: %s is invalid access token", accessToken)
 			//http.Error(w, err.Error(), http.StatusBadRequest)
 			w.WriteHeader(400)
 			data := map[string]interface{}{
@@ -98,6 +111,8 @@ func main() {
 			e.Encode(data)
 			return
 		}
+
+		log.Printf("info: /test, Token: %s is verified", accessToken)
 
 		data := map[string]interface{}{
 			"expires_in": int64(token.GetAccessCreateAt().Add(token.GetAccessExpiresIn()).Sub(time.Now()).Seconds()),
@@ -120,7 +135,7 @@ func main() {
 				return nil, fmt.Errorf("parse error")
 			}
 			log.Println("2")
-			return []byte("00000000"), nil
+			return []byte("12345678"), nil
 		})
 		if err != nil {
 			log.Println("3")
